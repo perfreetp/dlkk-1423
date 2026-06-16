@@ -332,10 +332,10 @@ export default function RiskConfirm() {
                 确认时间：{new Date(riskConfirm.confirmedAt!).toLocaleString("zh-CN")}
               </p>
             </div>
-            {riskConfirm.signature && (
+            {riskConfirm.customerSignature && (
               <div className="border border-steel-200 rounded-lg p-2 bg-steel-50 inline-block">
                 <img
-                  src={riskConfirm.signature}
+                  src={riskConfirm.customerSignature}
                   alt="客户签名"
                   className="max-h-28 rounded"
                 />
@@ -353,7 +353,7 @@ export default function RiskConfirm() {
         <SignatureCanvas
           onConfirm={handleConfirmRisk}
           disabled={false}
-          existingSignature={riskConfirm.signature}
+          existingSignature={riskConfirm.customerSignature}
         />
       ) : (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">

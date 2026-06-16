@@ -455,6 +455,10 @@ export default function RemoteCollab() {
 
   const { collaboration } = order
 
+  const exceptionMessages = collaboration.messages.filter(
+    (m) => m.type === "system" && m.content.startsWith("【异常转派】")
+  )
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -482,6 +486,36 @@ export default function RemoteCollab() {
           </Link>
         </div>
       </div>
+
+      {exceptionMessages.length > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+            <span className="font-semibold text-red-700">异常来源</span>
+          </div>
+          {exceptionMessages.map((msg) => {
+            const match = msg.content.match(/节点「([^」]+)」遇到异常：(.+)。请远程专家/)
+            const taskLabel = match?.[1] || "未知节点"
+            const error = match?.[2] || ""
+            return (
+              <div key={msg.id} className="ml-7 bg-white rounded-lg border border-red-100 p-3 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium bg-red-100 text-red-700 px-2 py-0.5 rounded">
+                    {taskLabel}
+                  </span>
+                  <span className="text-xs text-steel-400">
+                    {new Date(msg.timestamp).toLocaleString("zh-CN")}
+                  </span>
+                </div>
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )
+          })}
+          <p className="ml-7 text-xs text-steel-500">
+            此工单因操作任务中遇到异常转至远程协作，请协助排查解决
+          </p>
+        </div>
+      )}
 
       {collaboration.lastTimeoutAlert && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 animate-pulse">

@@ -492,9 +492,12 @@ interface OrderStore {
   addTransfer: (orderId: string, transfer: Omit<TransferRecord, "id" | "timestamp">) => void
   updateRiskItem: (orderId: string, itemId: string, confirmed: boolean) => void
   confirmRisk: (orderId: string, signature: string) => void
-  completeArchive: (orderId: string, updates: Partial<ArchiveData>) => void
+  updateArchive: (orderId: string, updates: Partial<ArchiveData>) => void
+  finalizeArchive: (orderId: string) => void
+  transferExceptionToCollab: (orderId: string, taskId: string, taskLabel: string, error: string) => void
   getBrandStats: () => BrandStats[]
   getOrder: (id: string) => WorkOrder | undefined
+  getCurrentStagePath: (order: WorkOrder) => string
 }
 
 let orderCounter = 9
@@ -672,13 +675,29 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
     })
   },
 
-  completeArchive: (orderId, updates) => {
+  updateArchive: (orderId, updates) => {
     set((state) => {
       const orders = state.orders.map((o) =>
         o.id === orderId
           ? {
               ...o,
               archive: { ...o.archive, ...updates },
+              updatedAt: new Date().toISOString(),
+            }
+          : o
+      )
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(orders))
+      return { orders }
+    })
+  },
+
+  finalizeArchive: (orderId) => {
+    set((state) => {
+      const orders = state.orders.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              archive: { ...o.archive, completedAt: new Date().toISOString() },
               status: "completed" as OrderStatus,
               updatedAt: new Date().toISOString(),
             }
@@ -687,6 +706,52 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       localStorage.setItem(STORAGE_KEY, JSON.stringify(orders))
       return { orders }
     })
+  },
+
+  transferExceptionToCollab: (orderId, taskId, taskLabel, error) => {
+    const systemMessage: Omit<CollaborationMessage, "id" | "timestamp"> = {
+      sender: "系统",
+      senderRole: "系统",
+      content: `【异常转派】节点「${taskLabel}」遇到异常：${error}。请远程专家协助处理。`,
+      type: "system",
+    }
+    set((state) => {
+      const orders = state.orders.map((o) => {
+        if (o.id !== orderId) return o
+        const existingMsg = o.collaboration.messages.find(
+          (m) => m.type === "system" && m.content.includes(`节点「${taskLabel}」`)
+        )
+        const newMsg: CollaborationMessage = {
+          ...systemMessage,
+          id: generateId(),
+          timestamp: new Date().toISOString(),
+        }
+        return {
+          ...o,
+          status: "collaborating" as OrderStatus,
+          collaboration: {
+            ...o.collaboration,
+            messages: existingMsg
+              ? o.collaboration.messages
+              : [...o.collaboration.messages, newMsg],
+          },
+          updatedAt: new Date().toISOString(),
+        }
+      })
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(orders))
+      return { orders }
+    })
+  },
+
+  getCurrentStagePath: (order) => {
+    if (order.status === "completed") return `/archive/${order.id}`
+    if (order.archive.completedAt) return `/archive/${order.id}`
+    if (order.riskConfirm.confirmedAt) return `/archive/${order.id}`
+    if (order.status === "confirming") return `/risk/${order.id}`
+    if (order.status === "collaborating") return `/collab/${order.id}`
+    if (order.tasks.some((t) => t.completed || t.result || t.error)) return `/tasks/${order.id}`
+    if (order.verify.imei1 || order.verify.photos.length > 0) return `/verify/${order.id}`
+    return `/verify/${order.id}`
   },
 
   getBrandStats: () => {

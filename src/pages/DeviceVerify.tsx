@@ -57,16 +57,10 @@ export default function DeviceVerify() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (order && !form) {
+    if (order) {
       setForm({ ...order.verify })
     }
   }, [order?.id, orders.length])
-
-  useEffect(() => {
-    if (order && !form) {
-      setForm({ ...order.verify })
-    }
-  }, [order, form])
 
   if (!orderId || !order) {
     return (
@@ -91,7 +85,6 @@ export default function DeviceVerify() {
 
   const handleSave = () => {
     updateVerify(orderId, form)
-    navigate("/tasks", { replace: true })
     navigate(`/tasks/${orderId}`, { replace: true })
   }
 
@@ -291,7 +284,7 @@ export default function DeviceVerify() {
               className="w-full px-3 py-2 border border-steel-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-steel-700 bg-white"
             >
               {BL_DIFFICULTY_OPTIONS.map((opt) => (
-                <option key={opt.value}>{opt.label}</option>
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </div>
@@ -315,7 +308,7 @@ export default function DeviceVerify() {
             className="w-full px-3 py-2 border border-steel-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-steel-700 bg-white"
           >
             {WARRANTY_STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
         </div>

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useParams, Link } from "react-router-dom"
+import { useParams, Link, useNavigate } from "react-router-dom"
 import {
   CheckCircle,
   Circle,
@@ -9,6 +9,7 @@ import {
   Clock,
   AlertCircle,
   ListChecks,
+  ArrowRightLeft,
 } from "lucide-react"
 import type { OperationTask } from "@/types"
 import { STATUS_LABELS, STATUS_COLORS, TASK_TYPE_LABELS } from "@/types"
@@ -39,10 +40,17 @@ function TaskNode({ task, tasks, orderId, isLast }: {
 }) {
   const [expanded, setExpanded] = useState(getTaskState(task, tasks) === "current")
   const updateTask = useOrderStore((s) => s.updateTask)
+  const transferExceptionToCollab = useOrderStore((s) => s.transferExceptionToCollab)
+  const navigate = useNavigate()
   const state = getTaskState(task, tasks)
 
   const handleChange = (updates: Partial<OperationTask>) => {
     updateTask(orderId, task.id, updates)
+  }
+
+  const handleTransfer = () => {
+    transferExceptionToCollab(orderId, task.id, task.label, task.error)
+    navigate(`/collab/${orderId}`)
   }
 
   return (
@@ -152,9 +160,19 @@ function TaskNode({ task, tasks, orderId, isLast }: {
             </div>
 
             {task.error && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3">
-                <p className="text-xs font-semibold text-red-600 mb-1">当前异常</p>
-                <p className="text-sm text-red-700">{task.error}</p>
+              <div className="rounded-md border border-red-200 bg-red-50 p-4 space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-red-600 mb-1">当前异常</p>
+                  <p className="text-sm text-red-700">{task.error}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTransfer}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 text-sm font-medium transition-colors"
+                >
+                  <ArrowRightLeft className="w-4 h-4" />
+                  一键转远程协作 · 请专家协助
+                </button>
               </div>
             )}
           </div>

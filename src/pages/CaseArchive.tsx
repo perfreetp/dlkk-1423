@@ -15,6 +15,10 @@ import {
   ArrowLeft,
   Home,
   Smartphone,
+  PenLine,
+  Clock,
+  Lock,
+  Edit3,
 } from "lucide-react"
 import type { ArchiveData, TestItem } from "@/types"
 import { STATUS_LABELS, STATUS_COLORS } from "@/types"
@@ -23,7 +27,7 @@ import OrderPicker from "@/components/OrderPicker"
 
 const PAYMENT_OPTIONS = [
   { value: "现金", label: "现金" },
-  { value: "微信", label: "微信" },
+  { value: "微信支付", label: "微信支付" },
   { value: "支付宝", label: "支付宝" },
   { value: "银行卡", label: "银行卡" },
 ]
@@ -55,25 +59,30 @@ export default function CaseArchive() {
 }
 
 function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<typeof useOrderStore.getState>["orders"][number] }) {
-  const completeArchive = useOrderStore((s) => s.completeArchive)
+  const updateArchive = useOrderStore((s) => s.updateArchive)
+  const finalizeArchive = useOrderStore((s) => s.finalizeArchive)
   const getBrandStats = useOrderStore((s) => s.getBrandStats)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const archive = order.archive
-  const isCompleted = order.status === "completed"
+  const risk = order.riskConfirm
+  const isFinalized = !!archive.completedAt
   const brandStats = getBrandStats()
 
   const updateField = <K extends keyof ArchiveData>(key: K, value: ArchiveData[K]) => {
-    completeArchive(orderId, { [key]: value })
+    if (isFinalized) return
+    updateArchive(orderId, { [key]: value })
   }
 
   const toggleTestItem = (index: number) => {
+    if (isFinalized) return
     const items = [...archive.testItems]
     items[index] = { ...items[index], passed: !items[index].passed }
     updateField("testItems", items)
   }
 
   const handleScreenshotUpload = async (files: FileList) => {
+    if (isFinalized) return
     const newShots: string[] = []
     for (let i = 0; i < files.length; i++) {
       try {
@@ -88,15 +97,15 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
   }
 
   const removeScreenshot = (index: number) => {
+    if (isFinalized) return
     const next = [...archive.successScreenshots]
     next.splice(index, 1)
     updateField("successScreenshots", next)
   }
 
-  const handleComplete = () => {
-    completeArchive(orderId, {
-      completedAt: new Date().toISOString(),
-    })
+  const handleFinalize = () => {
+    if (isFinalized) return
+    finalizeArchive(orderId)
   }
 
   const allTestsPassed = archive.testItems.length > 0 && archive.testItems.every((t) => t.passed)
@@ -104,7 +113,11 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
 
   const inputCls =
     "w-full rounded-lg border border-steel-300 bg-white px-3 py-2 text-sm text-steel-800 placeholder-steel-400 focus:border-steel-700 focus:outline-none focus:ring-1 focus:ring-steel-700 disabled:bg-steel-50 disabled:text-steel-400 disabled:cursor-not-allowed"
-  const labelCls = "block text-sm font-medium text-steel-700 mb-1"
+  const labelCls = "block text-sm font-semibold text-steel-700 mb-1.5"
+
+  const riskConfirmedAt = risk.confirmedAt
+    ? new Date(risk.confirmedAt).toLocaleString("zh-CN")
+    : "未完成"
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
@@ -112,8 +125,25 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
         <div className="flex items-center gap-3">
           <Archive className="h-7 w-7 text-steel-700" />
           <div>
-            <h1 className="text-2xl font-bold text-steel-900">结案档案</h1>
-            <p className="text-sm text-steel-500 mt-0.5">请完整填写归档信息，确保工单数据可追溯</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-steel-900">结案档案</h1>
+              {isFinalized ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 text-green-700 px-3 py-1 text-xs font-semibold border border-green-300">
+                  <Lock className="w-3.5 h-3.5" />
+                  已结案 · 不可编辑
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 text-amber-700 px-3 py-1 text-xs font-semibold border border-amber-300">
+                  <Edit3 className="w-3.5 h-3.5" />
+                  草稿状态 · 编辑中
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-steel-500 mt-0.5">
+              {isFinalized
+                ? "此工单已完成结案归档，所有内容已锁定"
+                : "请完整填写归档信息，确认无误后点击「完成结案归档」锁定"}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -156,12 +186,61 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
         </span>
       </div>
 
+      {/* 风险确认信息卡 - Feature 3 */}
+      <div className={`rounded-xl border p-5 mb-6 ${
+        risk.confirmedAt
+          ? "bg-green-50/50 border-green-200"
+          : "bg-amber-50/50 border-amber-200"
+      }`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              risk.confirmedAt ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+            }`}>
+              {risk.confirmedAt ? (
+                <CheckCircle2 className="w-5 h-5" />
+              ) : (
+                <AlertTriangle className="w-5 h-5" />
+              )}
+            </div>
+            <div>
+              <p className="font-semibold text-steel-900">风险确认状态</p>
+              <p className="text-sm text-steel-500 mt-0.5">
+                {risk.confirmedAt
+                  ? `客户已完成风险确认 · 确认时间：${riskConfirmedAt}`
+                  : "尚未完成风险确认，请先在风险确认页获得客户签名"}
+              </p>
+            </div>
+          </div>
+          {risk.customerSignature && (
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-xs font-medium text-steel-500 mb-1">客户签名</p>
+                <div className="border border-steel-300 rounded-lg p-1.5 bg-white shadow-sm">
+                  <img
+                    src={risk.customerSignature}
+                    alt="客户签名"
+                    className="h-12 object-contain"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="flex gap-6">
         <div className="w-2/3 space-y-6">
+          {/* 刷机记录 */}
           <div className="rounded-xl border border-steel-200 bg-white p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Cpu className="h-5 w-5 text-steel-700" />
-              <h2 className="text-lg font-semibold text-steel-900">刷机记录</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Cpu className="h-5 w-5 text-steel-700" />
+                <h2 className="text-lg font-semibold text-steel-900">刷机记录</h2>
+              </div>
+              {!isFinalized && (
+                <span className="text-xs text-steel-400">草稿 · 自动保存</span>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -170,9 +249,9 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                   type="text"
                   value={archive.flashPackageVersion}
                   onChange={(e) => updateField("flashPackageVersion", e.target.value)}
-                  disabled={isCompleted}
+                  disabled={isFinalized}
                   className={inputCls}
-                  placeholder="请输入刷机包版本号"
+                  placeholder="例：PixelExperience_Plus_14.0_oneplus12"
                 />
               </div>
               <div>
@@ -181,14 +260,15 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                   type="text"
                   value={archive.toolVersion}
                   onChange={(e) => updateField("toolVersion", e.target.value)}
-                  disabled={isCompleted}
+                  disabled={isFinalized}
                   className={inputCls}
-                  placeholder="请输入工具版本号"
+                  placeholder="例：TWRP 3.7.1 + fastboot"
                 />
               </div>
             </div>
           </div>
 
+          {/* 成功截图 */}
           <div className="rounded-xl border border-steel-200 bg-white p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -205,7 +285,7 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                   className="hidden"
                   onChange={(e) => e.target.files && handleScreenshotUpload(e.target.files)}
                 />
-                {!isCompleted && (
+                {!isFinalized && (
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber text-white rounded-lg hover:bg-amber-500 transition text-sm font-medium"
@@ -223,7 +303,7 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                   className="aspect-square rounded-lg border border-steel-200 bg-white relative overflow-hidden group"
                 >
                   <img src={src} alt={`成功截图${i + 1}`} className="w-full h-full object-cover" />
-                  {!isCompleted && (
+                  {!isFinalized && (
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <button
                         onClick={() => removeScreenshot(i)}
@@ -235,7 +315,7 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                   )}
                 </div>
               ))}
-              {!isCompleted &&
+              {!isFinalized &&
                 Array.from({ length: Math.max(1, totalSlots - archive.successScreenshots.length) }).map((_, i) => (
                   <label
                     key={`slot-${i}`}
@@ -252,21 +332,34 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                     <span className="text-sm">点击上传</span>
                   </label>
                 ))}
-              {isCompleted && archive.successScreenshots.length === 0 && (
+              {isFinalized && archive.successScreenshots.length === 0 && (
                 <div className="col-span-3 py-8 text-center text-steel-400 text-sm">
                   未上传截图
                 </div>
               )}
             </div>
+            {!isFinalized && archive.successScreenshots.length === 0 && (
+              <p className="mt-3 text-xs text-steel-400">
+                提示：结案前建议至少上传 1 张设备正常运行的成功截图
+              </p>
+            )}
           </div>
 
+          {/* 检测项目 */}
           <div className="rounded-xl border border-steel-200 bg-white p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <FileCheck className="h-5 w-5 text-steel-700" />
-              <h2 className="text-lg font-semibold text-steel-900">检测项目</h2>
-              {allTestsPassed && (
-                <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                  全部通过
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <FileCheck className="h-5 w-5 text-steel-700" />
+                <h2 className="text-lg font-semibold text-steel-900">检测项目</h2>
+                {allTestsPassed && (
+                  <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+                    全部通过
+                  </span>
+                )}
+              </div>
+              {!isFinalized && (
+                <span className="text-xs text-steel-400">
+                  {archive.testItems.filter((t) => t.passed).length}/{archive.testItems.length} 已通过
                 </span>
               )}
             </div>
@@ -276,15 +369,15 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                   key={item.name}
                   className="flex items-center justify-between rounded-lg border border-steel-200 px-4 py-3 bg-steel-50/50"
                 >
-                  <span className="text-sm text-steel-800">{item.name}</span>
+                  <span className="text-sm font-medium text-steel-800">{item.name}</span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      disabled={isCompleted}
+                      disabled={isFinalized}
                       onClick={() => {
-                        if (!item.passed) toggleTestItem(index)
+                        if (!item.passed && !isFinalized) toggleTestItem(index)
                       }}
-                      className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                      className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
                         item.passed
                           ? "bg-green-100 text-green-700 ring-1 ring-green-300"
                           : "bg-white text-steel-400 ring-1 ring-steel-200 hover:bg-green-50 hover:text-green-600"
@@ -295,11 +388,11 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                     </button>
                     <button
                       type="button"
-                      disabled={isCompleted}
+                      disabled={isFinalized}
                       onClick={() => {
-                        if (item.passed) toggleTestItem(index)
+                        if (item.passed && !isFinalized) toggleTestItem(index)
                       }}
-                      className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                      className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
                         !item.passed
                           ? "bg-red-100 text-red-700 ring-1 ring-red-300"
                           : "bg-white text-steel-400 ring-1 ring-steel-200 hover:bg-red-50 hover:text-red-600"
@@ -314,10 +407,13 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
             </div>
           </div>
 
+          {/* 收费记录 */}
           <div className="rounded-xl border border-steel-200 bg-white p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <CreditCard className="h-5 w-5 text-steel-700" />
-              <h2 className="text-lg font-semibold text-steel-900">收费记录</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-steel-700" />
+                <h2 className="text-lg font-semibold text-steel-900">收费记录</h2>
+              </div>
             </div>
             <div className="space-y-4">
               <div>
@@ -329,7 +425,7 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                   onChange={(e) =>
                     updateField("chargeAmount", e.target.value ? Number(e.target.value) : 0)
                   }
-                  disabled={isCompleted}
+                  disabled={isFinalized}
                   className={inputCls}
                   placeholder="0"
                 />
@@ -339,7 +435,7 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                 <select
                   value={archive.paymentMethod}
                   onChange={(e) => updateField("paymentMethod", e.target.value)}
-                  disabled={isCompleted}
+                  disabled={isFinalized}
                   className={inputCls}
                 >
                   <option value="">请选择支付方式</option>
@@ -356,7 +452,7 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                   type="text"
                   value={archive.receiptInfo}
                   onChange={(e) => updateField("receiptInfo", e.target.value)}
-                  disabled={isCompleted}
+                  disabled={isFinalized}
                   className={inputCls}
                   placeholder="请输入收据编号或信息"
                 />
@@ -364,6 +460,7 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
             </div>
           </div>
 
+          {/* 质保信息 */}
           <div className="rounded-xl border border-steel-200 bg-white p-5">
             <div className="flex items-center gap-2 mb-4">
               <ShieldCheck className="h-5 w-5 text-steel-700" />
@@ -379,7 +476,7 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                   onChange={(e) =>
                     updateField("warrantyMonths", e.target.value ? Number(e.target.value) : 0)
                   }
-                  disabled={isCompleted}
+                  disabled={isFinalized}
                   className={inputCls}
                   placeholder="3"
                 />
@@ -389,34 +486,57 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                 <textarea
                   value={archive.warrantyNote}
                   onChange={(e) => updateField("warrantyNote", e.target.value)}
-                  disabled={isCompleted}
+                  disabled={isFinalized}
                   rows={3}
                   className={`${inputCls} resize-none`}
-                  placeholder="请输入质保说明..."
+                  placeholder="例：同一问题3个月内免费返修，仅针对本次解锁/刷机操作"
                 />
               </div>
             </div>
           </div>
 
-          {!isCompleted && (
-            <button
-              type="button"
-              onClick={handleComplete}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-steel-800 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-steel-900 active:scale-[0.99]"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              完成结案归档
-            </button>
-          )}
-
-          {isCompleted && (
-            <div className="flex items-center justify-center gap-2 rounded-xl border border-green-300 bg-green-50 px-6 py-3 text-sm font-medium text-green-700">
-              <CheckCircle2 className="h-4 w-4" />
-              该工单已结案归档 · {archive.completedAt && new Date(archive.completedAt).toLocaleString("zh-CN")}
+          {/* 操作按钮 */}
+          {!isFinalized ? (
+            <div className="space-y-3">
+              <div className="rounded-lg bg-steel-50 border border-steel-200 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-steel-800">结案前请确认</p>
+                    <ul className="text-xs text-steel-600 mt-1.5 space-y-1">
+                      <li>• 所有必填项已完整填写</li>
+                      <li>• 已至少上传 1 张成功截图</li>
+                      <li>• 所有检测项目结果已标记</li>
+                      <li>• 点击后内容将锁定，无法再修改</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleFinalize}
+                disabled={!risk.confirmedAt}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-steel-800 px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-steel-900 active:scale-[0.99] disabled:bg-steel-400 disabled:cursor-not-allowed"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {!risk.confirmedAt ? "请先完成风险确认" : "完成结案归档（内容将锁定）"}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-green-300 bg-green-50 px-6 py-4 text-sm font-medium text-green-700">
+              <CheckCircle2 className="h-5 w-5" />
+              <div className="text-center">
+                <p>该工单已结案归档</p>
+                <p className="text-xs text-green-600 mt-0.5">
+                  <Clock className="w-3.5 h-3.5 inline mr-1" />
+                  结案时间：{archive.completedAt && new Date(archive.completedAt).toLocaleString("zh-CN")}
+                </p>
+              </div>
             </div>
           )}
         </div>
 
+        {/* 右侧统计栏 */}
         <div className="w-1/3 space-y-6">
           <div className="rounded-xl border border-steel-200 bg-white p-5">
             <div className="flex items-center gap-2 mb-4">
@@ -485,7 +605,7 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
                         className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
                       >
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-                        <span className="text-sm text-amber-800">{model}</span>
+                        <span className="text-sm text-amber-800 font-medium">{model}</span>
                       </div>
                     ))
                   )}
@@ -494,6 +614,28 @@ function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<ty
               <p className="text-sm text-steel-400 text-center py-4">暂无高风险机型</p>
             )}
           </div>
+
+          {/* 签名信息卡 */}
+          {risk.customerSignature && (
+            <div className="rounded-xl border border-steel-200 bg-white p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <PenLine className="h-5 w-5 text-steel-700" />
+                <h2 className="text-lg font-semibold text-steel-900">客户签名</h2>
+              </div>
+              <div className="border border-steel-200 rounded-lg p-3 bg-steel-50 flex items-center justify-center">
+                <img
+                  src={risk.customerSignature}
+                  alt="客户签名"
+                  className="max-h-24 object-contain"
+                />
+              </div>
+              {risk.confirmedAt && (
+                <p className="text-xs text-steel-500 mt-2 text-center">
+                  签署时间：{new Date(risk.confirmedAt).toLocaleString("zh-CN")}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

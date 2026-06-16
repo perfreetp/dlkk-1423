@@ -1,7 +1,6 @@
-import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useRef } from "react"
+import { useParams, Link } from "react-router-dom"
 import {
-  AlertCircle,
   Archive,
   Cpu,
   ImagePlus,
@@ -11,115 +10,165 @@ import {
   ShieldCheck,
   BarChart3,
   AlertTriangle,
-  Save,
   FileCheck,
-} from "lucide-react";
-import type { ArchiveData, TestItem } from "@/types";
-import { STATUS_LABELS, STATUS_COLORS } from "@/types";
-import { useOrderStore } from "@/store/useOrderStore";
+  X,
+  ArrowLeft,
+  Home,
+  Smartphone,
+} from "lucide-react"
+import type { ArchiveData, TestItem } from "@/types"
+import { STATUS_LABELS, STATUS_COLORS } from "@/types"
+import { useOrderStore } from "@/store/useOrderStore"
+import OrderPicker from "@/components/OrderPicker"
 
 const PAYMENT_OPTIONS = [
   { value: "现金", label: "现金" },
   { value: "微信", label: "微信" },
   { value: "支付宝", label: "支付宝" },
   { value: "银行卡", label: "银行卡" },
-];
+]
+
+const fileToDataURL = (f: File) =>
+  new Promise<string>((res, rej) => {
+    const r = new FileReader()
+    r.onload = () => res(r.result as string)
+    r.onerror = rej
+    r.readAsDataURL(f)
+  })
 
 export default function CaseArchive() {
-  const { orderId } = useParams<{ orderId: string }>();
-  const getOrder = useOrderStore((s) => s.getOrder);
-  const order = orderId ? getOrder(orderId) : undefined;
+  const { orderId } = useParams<{ orderId: string }>()
+  const orders = useOrderStore((s) => s.orders)
+  const order = orderId ? orders.find((o) => o.id === orderId) : undefined
 
-  if (!order) {
+  if (!orderId || !order) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
-        <AlertCircle className="h-12 w-12 text-gray-300" />
-        <p className="text-gray-500 text-lg">未找到该工单</p>
-        <Link
-          to="/"
-          className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
-        >
-          返回首页
-        </Link>
-      </div>
-    );
+      <OrderPicker
+        title="结案档案"
+        description="请先选择要结案归档的工单，录入刷机记录、成功截图、检测项目、收费记录和质保信息"
+        routePrefix="/archive"
+      />
+    )
   }
 
-  return <ArchiveView orderId={order.id} />;
+  return <ArchiveView orderId={orderId} order={order} />
 }
 
-function ArchiveView({ orderId }: { orderId: string }) {
-  const getOrder = useOrderStore((s) => s.getOrder);
-  const completeArchive = useOrderStore((s) => s.completeArchive);
-  const getBrandStats = useOrderStore((s) => s.getBrandStats);
+function ArchiveView({ orderId, order }: { orderId: string; order: ReturnType<typeof useOrderStore.getState>["orders"][number] }) {
+  const completeArchive = useOrderStore((s) => s.completeArchive)
+  const getBrandStats = useOrderStore((s) => s.getBrandStats)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const order = getOrder(orderId)!;
-  const isCompleted = order.status === "completed";
-  const brandStats = getBrandStats();
-
-  const [form, setForm] = useState<ArchiveData>({ ...order.archive });
+  const archive = order.archive
+  const isCompleted = order.status === "completed"
+  const brandStats = getBrandStats()
 
   const updateField = <K extends keyof ArchiveData>(key: K, value: ArchiveData[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
+    completeArchive(orderId, { [key]: value })
+  }
 
   const toggleTestItem = (index: number) => {
-    setForm((prev) => {
-      const items = [...prev.testItems];
-      items[index] = { ...items[index], passed: !items[index].passed };
-      return { ...prev, testItems: items };
-    });
-  };
+    const items = [...archive.testItems]
+    items[index] = { ...items[index], passed: !items[index].passed }
+    updateField("testItems", items)
+  }
+
+  const handleScreenshotUpload = async (files: FileList) => {
+    const newShots: string[] = []
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const dataUrl = await fileToDataURL(files[i])
+        newShots.push(dataUrl)
+      } catch {
+        // ignore
+      }
+    }
+    const next = [...archive.successScreenshots, ...newShots]
+    updateField("successScreenshots", next)
+  }
+
+  const removeScreenshot = (index: number) => {
+    const next = [...archive.successScreenshots]
+    next.splice(index, 1)
+    updateField("successScreenshots", next)
+  }
 
   const handleComplete = () => {
     completeArchive(orderId, {
-      ...form,
       completedAt: new Date().toISOString(),
-    });
-  };
+    })
+  }
 
-  const allTestsPassed = form.testItems.length > 0 && form.testItems.every((t) => t.passed);
+  const allTestsPassed = archive.testItems.length > 0 && archive.testItems.every((t) => t.passed)
+  const totalSlots = 6
 
   const inputCls =
-    "w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed";
-  const labelCls = "block text-xs font-medium text-gray-500 mb-1";
+    "w-full rounded-lg border border-steel-300 bg-white px-3 py-2 text-sm text-steel-800 placeholder-steel-400 focus:border-steel-700 focus:outline-none focus:ring-1 focus:ring-steel-700 disabled:bg-steel-50 disabled:text-steel-400 disabled:cursor-not-allowed"
+  const labelCls = "block text-sm font-medium text-steel-700 mb-1"
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6">
-      <div className="flex items-center gap-3 mb-6">
-        <Archive className="h-6 w-6 text-blue-600" />
-        <h1 className="text-xl font-bold text-gray-900">结案档案</h1>
+    <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Archive className="h-7 w-7 text-steel-700" />
+          <div>
+            <h1 className="text-2xl font-bold text-steel-900">结案档案</h1>
+            <p className="text-sm text-steel-500 mt-0.5">请完整填写归档信息，确保工单数据可追溯</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <Link
+            to={`/risk/${order.id}`}
+            className="inline-flex items-center gap-1.5 text-sm text-steel-600 hover:text-steel-800 transition"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            返回风险确认
+          </Link>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-sm text-steel-600 hover:text-steel-800 transition"
+          >
+            <Home className="w-4 h-4" />
+            工单大厅
+          </Link>
+        </div>
       </div>
 
-      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-base font-semibold text-gray-800">{order.orderNo}</span>
-            <span className="text-sm text-gray-500">
-              {order.brand} {order.model}
-            </span>
+      <div className="rounded-xl border border-steel-200 bg-white p-5 mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="space-y-1">
+            <p className="text-sm text-steel-500">工单编号</p>
+            <p className="text-lg font-semibold text-steel-900 font-mono">{order.orderNo}</p>
           </div>
-          <span
-            className={`inline-block rounded-full border px-3 py-1 text-xs font-medium ${STATUS_COLORS[order.status]}`}
-          >
-            {STATUS_LABELS[order.status]}
-          </span>
+          <div className="w-px h-10 bg-steel-200 mx-2" />
+          <div className="space-y-1">
+            <p className="text-sm text-steel-500">设备型号</p>
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-steel-500" />
+              <p className="text-lg font-semibold text-steel-900">{order.brand} {order.model}</p>
+            </div>
+          </div>
         </div>
+        <span
+          className={`inline-block rounded-full border px-3 py-1 text-xs font-medium ${STATUS_COLORS[order.status]}`}
+        >
+          {STATUS_LABELS[order.status]}
+        </span>
       </div>
 
       <div className="flex gap-6">
         <div className="w-2/3 space-y-6">
-          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="rounded-xl border border-steel-200 bg-white p-5">
             <div className="flex items-center gap-2 mb-4">
-              <Cpu className="h-4 w-4 text-blue-500" />
-              <h2 className="text-sm font-semibold text-gray-800">刷机记录</h2>
+              <Cpu className="h-5 w-5 text-steel-700" />
+              <h2 className="text-lg font-semibold text-steel-900">刷机记录</h2>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>刷机包版本</label>
                 <input
                   type="text"
-                  value={form.flashPackageVersion}
+                  value={archive.flashPackageVersion}
                   onChange={(e) => updateField("flashPackageVersion", e.target.value)}
                   disabled={isCompleted}
                   className={inputCls}
@@ -130,7 +179,7 @@ function ArchiveView({ orderId }: { orderId: string }) {
                 <label className={labelCls}>工具版本</label>
                 <input
                   type="text"
-                  value={form.toolVersion}
+                  value={archive.toolVersion}
                   onChange={(e) => updateField("toolVersion", e.target.value)}
                   disabled={isCompleted}
                   className={inputCls}
@@ -140,49 +189,105 @@ function ArchiveView({ orderId }: { orderId: string }) {
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-4">
-              <ImagePlus className="h-4 w-4 text-blue-500" />
-              <h2 className="text-sm font-semibold text-gray-800">成功截图</h2>
+          <div className="rounded-xl border border-steel-200 bg-white p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <ImagePlus className="h-5 w-5 text-steel-700" />
+                <h2 className="text-lg font-semibold text-steel-900">成功截图</h2>
+                <span className="text-sm text-steel-500 ml-2">（共 {archive.successScreenshots.length} 张）</span>
+              </div>
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => e.target.files && handleScreenshotUpload(e.target.files)}
+                />
+                {!isCompleted && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber text-white rounded-lg hover:bg-amber-500 transition text-sm font-medium"
+                  >
+                    <ImagePlus className="w-4 h-4" />
+                    上传截图
+                  </button>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-3 gap-4">
-              {[0, 1, 2].map((i) => (
+              {archive.successScreenshots.map((src, i) => (
                 <div
-                  key={i}
-                  className="flex h-32 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 transition hover:border-gray-300"
+                  key={`s-${i}`}
+                  className="aspect-square rounded-lg border border-steel-200 bg-white relative overflow-hidden group"
                 >
-                  <div className="text-center">
-                    <ImagePlus className="mx-auto h-8 w-8 text-gray-300" />
-                    <p className="mt-1 text-xs text-gray-400">上传截图</p>
-                  </div>
+                  <img src={src} alt={`成功截图${i + 1}`} className="w-full h-full object-cover" />
+                  {!isCompleted && (
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <button
+                        onClick={() => removeScreenshot(i)}
+                        className="p-2 rounded-full bg-red-500 text-white"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
+              {!isCompleted &&
+                Array.from({ length: Math.max(1, totalSlots - archive.successScreenshots.length) }).map((_, i) => (
+                  <label
+                    key={`slot-${i}`}
+                    className="aspect-square border-2 border-dashed border-steel-300 rounded-lg flex flex-col items-center justify-center text-steel-400 hover:border-amber-500 hover:text-amber-600 transition-colors cursor-pointer bg-white"
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => e.target.files && handleScreenshotUpload(e.target.files)}
+                    />
+                    <ImagePlus className="w-8 h-8 mb-1" />
+                    <span className="text-sm">点击上传</span>
+                  </label>
+                ))}
+              {isCompleted && archive.successScreenshots.length === 0 && (
+                <div className="col-span-3 py-8 text-center text-steel-400 text-sm">
+                  未上传截图
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="rounded-xl border border-steel-200 bg-white p-5">
             <div className="flex items-center gap-2 mb-4">
-              <FileCheck className="h-4 w-4 text-blue-500" />
-              <h2 className="text-sm font-semibold text-gray-800">检测项目</h2>
+              <FileCheck className="h-5 w-5 text-steel-700" />
+              <h2 className="text-lg font-semibold text-steel-900">检测项目</h2>
+              {allTestsPassed && (
+                <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                  全部通过
+                </span>
+              )}
             </div>
             <div className="space-y-2">
-              {form.testItems.map((item, index) => (
+              {archive.testItems.map((item: TestItem, index: number) => (
                 <div
                   key={item.name}
-                  className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3"
+                  className="flex items-center justify-between rounded-lg border border-steel-200 px-4 py-3 bg-steel-50/50"
                 >
-                  <span className="text-sm text-gray-700">{item.name}</span>
+                  <span className="text-sm text-steel-800">{item.name}</span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       disabled={isCompleted}
                       onClick={() => {
-                        if (!item.passed) toggleTestItem(index);
+                        if (!item.passed) toggleTestItem(index)
                       }}
                       className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition ${
                         item.passed
                           ? "bg-green-100 text-green-700 ring-1 ring-green-300"
-                          : "bg-gray-50 text-gray-400 ring-1 ring-gray-200 hover:bg-green-50 hover:text-green-600"
+                          : "bg-white text-steel-400 ring-1 ring-steel-200 hover:bg-green-50 hover:text-green-600"
                       } disabled:cursor-not-allowed`}
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />
@@ -192,12 +297,12 @@ function ArchiveView({ orderId }: { orderId: string }) {
                       type="button"
                       disabled={isCompleted}
                       onClick={() => {
-                        if (item.passed) toggleTestItem(index);
+                        if (item.passed) toggleTestItem(index)
                       }}
                       className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition ${
                         !item.passed
                           ? "bg-red-100 text-red-700 ring-1 ring-red-300"
-                          : "bg-gray-50 text-gray-400 ring-1 ring-gray-200 hover:bg-red-50 hover:text-red-600"
+                          : "bg-white text-steel-400 ring-1 ring-steel-200 hover:bg-red-50 hover:text-red-600"
                       } disabled:cursor-not-allowed`}
                     >
                       <XCircle className="h-3.5 w-3.5" />
@@ -209,10 +314,10 @@ function ArchiveView({ orderId }: { orderId: string }) {
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="rounded-xl border border-steel-200 bg-white p-5">
             <div className="flex items-center gap-2 mb-4">
-              <CreditCard className="h-4 w-4 text-blue-500" />
-              <h2 className="text-sm font-semibold text-gray-800">收费记录</h2>
+              <CreditCard className="h-5 w-5 text-steel-700" />
+              <h2 className="text-lg font-semibold text-steel-900">收费记录</h2>
             </div>
             <div className="space-y-4">
               <div>
@@ -220,7 +325,7 @@ function ArchiveView({ orderId }: { orderId: string }) {
                 <input
                   type="number"
                   min={0}
-                  value={form.chargeAmount || ""}
+                  value={archive.chargeAmount || ""}
                   onChange={(e) =>
                     updateField("chargeAmount", e.target.value ? Number(e.target.value) : 0)
                   }
@@ -232,7 +337,7 @@ function ArchiveView({ orderId }: { orderId: string }) {
               <div>
                 <label className={labelCls}>支付方式</label>
                 <select
-                  value={form.paymentMethod}
+                  value={archive.paymentMethod}
                   onChange={(e) => updateField("paymentMethod", e.target.value)}
                   disabled={isCompleted}
                   className={inputCls}
@@ -249,7 +354,7 @@ function ArchiveView({ orderId }: { orderId: string }) {
                 <label className={labelCls}>收据信息</label>
                 <input
                   type="text"
-                  value={form.receiptInfo}
+                  value={archive.receiptInfo}
                   onChange={(e) => updateField("receiptInfo", e.target.value)}
                   disabled={isCompleted}
                   className={inputCls}
@@ -259,10 +364,10 @@ function ArchiveView({ orderId }: { orderId: string }) {
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="rounded-xl border border-steel-200 bg-white p-5">
             <div className="flex items-center gap-2 mb-4">
-              <ShieldCheck className="h-4 w-4 text-blue-500" />
-              <h2 className="text-sm font-semibold text-gray-800">质保信息</h2>
+              <ShieldCheck className="h-5 w-5 text-steel-700" />
+              <h2 className="text-lg font-semibold text-steel-900">质保信息</h2>
             </div>
             <div className="space-y-4">
               <div>
@@ -270,7 +375,7 @@ function ArchiveView({ orderId }: { orderId: string }) {
                 <input
                   type="number"
                   min={0}
-                  value={form.warrantyMonths || ""}
+                  value={archive.warrantyMonths || ""}
                   onChange={(e) =>
                     updateField("warrantyMonths", e.target.value ? Number(e.target.value) : 0)
                   }
@@ -282,7 +387,7 @@ function ArchiveView({ orderId }: { orderId: string }) {
               <div>
                 <label className={labelCls}>质保备注</label>
                 <textarea
-                  value={form.warrantyNote}
+                  value={archive.warrantyNote}
                   onChange={(e) => updateField("warrantyNote", e.target.value)}
                   disabled={isCompleted}
                   rows={3}
@@ -297,47 +402,47 @@ function ArchiveView({ orderId }: { orderId: string }) {
             <button
               type="button"
               onClick={handleComplete}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98]"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-steel-800 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-steel-900 active:scale-[0.99]"
             >
-              <Save className="h-4 w-4" />
-              完成结案
+              <CheckCircle2 className="h-4 w-4" />
+              完成结案归档
             </button>
           )}
 
           {isCompleted && (
-            <div className="flex items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 px-6 py-3 text-sm font-medium text-green-700">
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-green-300 bg-green-50 px-6 py-3 text-sm font-medium text-green-700">
               <CheckCircle2 className="h-4 w-4" />
-              该工单已结案归档
+              该工单已结案归档 · {archive.completedAt && new Date(archive.completedAt).toLocaleString("zh-CN")}
             </div>
           )}
         </div>
 
         <div className="w-1/3 space-y-6">
-          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="rounded-xl border border-steel-200 bg-white p-5">
             <div className="flex items-center gap-2 mb-4">
-              <BarChart3 className="h-4 w-4 text-blue-500" />
-              <h2 className="text-sm font-semibold text-gray-800">品牌成功率</h2>
+              <BarChart3 className="h-5 w-5 text-steel-700" />
+              <h2 className="text-lg font-semibold text-steel-900">品牌成功率</h2>
             </div>
-            <div className="overflow-hidden rounded-lg border border-gray-100">
+            <div className="overflow-hidden rounded-lg border border-steel-200">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">品牌</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">工单数</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">成功率</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">平均耗时</th>
+                  <tr className="border-b border-steel-200 bg-steel-50">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-steel-600">品牌</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-steel-600">工单数</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-steel-600">成功率</th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold text-steel-600">平均耗时</th>
                   </tr>
                 </thead>
                 <tbody>
                   {brandStats.map((stat) => (
-                    <tr key={stat.brand} className="border-b border-gray-50 last:border-0">
-                      <td className="px-3 py-2.5 text-gray-700 font-medium">{stat.brand}</td>
-                      <td className="px-3 py-2.5 text-gray-600">{stat.totalOrders}</td>
+                    <tr key={stat.brand} className="border-b border-steel-100 last:border-0">
+                      <td className="px-3 py-2.5 text-steel-800 font-medium">{stat.brand}</td>
+                      <td className="px-3 py-2.5 text-steel-600">{stat.totalOrders}</td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2">
-                          <div className="h-2 w-16 rounded-full bg-gray-100 overflow-hidden">
+                          <div className="h-2 w-16 rounded-full bg-steel-100 overflow-hidden">
                             <div
-                              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-green-500"
+                              className="h-full rounded-full bg-gradient-to-r from-amber-500 to-green-500"
                               style={{ width: `${stat.successRate}%` }}
                             />
                           </div>
@@ -354,7 +459,7 @@ function ArchiveView({ orderId }: { orderId: string }) {
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-right text-gray-600">
+                      <td className="px-3 py-2.5 text-right text-steel-600">
                         {stat.avgDurationMinutes > 0 ? `${stat.avgDurationMinutes}分钟` : "-"}
                       </td>
                     </tr>
@@ -364,10 +469,10 @@ function ArchiveView({ orderId }: { orderId: string }) {
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="rounded-xl border border-steel-200 bg-white p-5">
             <div className="flex items-center gap-2 mb-4">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              <h2 className="text-sm font-semibold text-gray-800">高风险机型</h2>
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              <h2 className="text-lg font-semibold text-steel-900">高风险机型</h2>
             </div>
             {brandStats.some((s) => s.highRiskModels.length > 0) ? (
               <div className="space-y-2">
@@ -377,7 +482,7 @@ function ArchiveView({ orderId }: { orderId: string }) {
                     s.highRiskModels.map((model) => (
                       <div
                         key={model}
-                        className="flex items-center gap-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2"
+                        className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
                       >
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
                         <span className="text-sm text-amber-800">{model}</span>
@@ -386,11 +491,11 @@ function ArchiveView({ orderId }: { orderId: string }) {
                   )}
               </div>
             ) : (
-              <p className="text-sm text-gray-400 text-center py-4">暂无高风险机型</p>
+              <p className="text-sm text-steel-400 text-center py-4">暂无高风险机型</p>
             )}
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

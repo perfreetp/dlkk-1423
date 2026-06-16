@@ -19,8 +19,20 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 10) + Date.now().toString(36)
 }
 
-function generateOrderNo(index: number): string {
-  return `FF${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}${String(index).padStart(4, "0")}`
+function generateOrderNo(maxIndex: number): string {
+  return `FF${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}${String(maxIndex).padStart(4, "0")}`
+}
+
+function getMaxOrderIndex(orders: WorkOrder[]): number {
+  let max = 0
+  for (const o of orders) {
+    const m = /^FF\d{6}(\d{4})$/.exec(o.orderNo)
+    if (m) {
+      const n = parseInt(m[1], 10)
+      if (n > max) max = n
+    }
+  }
+  return max
 }
 
 function createDefaultVerify(): DeviceVerify {
@@ -42,6 +54,7 @@ function createDefaultTasks(): OperationTask[] {
     { id: generateId(), type: "backup", label: "资料备份", completed: false, result: "", duration: 0, error: "" },
     { id: generateId(), type: "unlock", label: "解锁操作", completed: false, result: "", duration: 0, error: "" },
     { id: generateId(), type: "flash", label: "刷机写入", completed: false, result: "", duration: 0, error: "" },
+    { id: generateId(), type: "unbrick", label: "救砖修复", completed: false, result: "", duration: 0, error: "" },
     { id: generateId(), type: "repair", label: "分区修复", completed: false, result: "", duration: 0, error: "" },
   ]
 }
@@ -493,22 +506,28 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
       try {
-        set({ orders: JSON.parse(stored) })
+        const parsedOrders = JSON.parse(stored) as WorkOrder[]
+        orderCounter = getMaxOrderIndex(parsedOrders) + 1
+        set({ orders: parsedOrders })
         return
       } catch {
         // ignore parse error
       }
     }
     const mockOrders = createMockOrders()
+    orderCounter = getMaxOrderIndex(mockOrders) + 1
     set({ orders: mockOrders })
     localStorage.setItem(STORAGE_KEY, JSON.stringify(mockOrders))
   },
 
   addOrder: (orderData) => {
+    const state = get()
+    const nextIndex = getMaxOrderIndex(state.orders) + 1
+    orderCounter = nextIndex + 1
     const newOrder: WorkOrder = {
       ...orderData,
       id: generateId(),
-      orderNo: generateOrderNo(orderCounter++),
+      orderNo: generateOrderNo(nextIndex),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       verify: createDefaultVerify(),

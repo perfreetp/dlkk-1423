@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState } from "react"
+import { useParams, Link } from "react-router-dom"
 import {
   CheckCircle,
   Circle,
@@ -8,266 +8,223 @@ import {
   ChevronUp,
   Clock,
   AlertCircle,
-} from "lucide-react";
-import type { WorkOrder, OperationTask } from "@/types";
-import { STATUS_LABELS, STATUS_COLORS, TASK_TYPE_LABELS } from "@/types";
-import { useOrderStore } from "@/store/useOrderStore";
+  ListChecks,
+} from "lucide-react"
+import type { OperationTask } from "@/types"
+import { STATUS_LABELS, STATUS_COLORS, TASK_TYPE_LABELS } from "@/types"
+import { useOrderStore } from "@/store/useOrderStore"
+import OrderPicker from "@/components/OrderPicker"
 
-function getTaskState(
-  task: OperationTask,
+function getTaskState(task: OperationTask, tasks: OperationTask[]): "completed" | "current" | "pending" {
+  if (task.completed) return "completed"
+  const firstIncomplete = tasks.find((t) => !t.completed)
+  if (firstIncomplete && firstIncomplete.id === task.id) return "current"
+  return "pending"
+}
+
+const TASK_TYPE_COLORS: Record<OperationTask["type"], string> = {
+  flash: "bg-amber-100 text-amber-700",
+  unbrick: "bg-red-100 text-red-700",
+  unlock: "bg-blue-100 text-blue-700",
+  backup: "bg-teal-100 text-teal-700",
+  repair: "bg-purple-100 text-purple-700",
+  other: "bg-gray-100 text-gray-700",
+}
+
+function TaskNode({ task, tasks, orderId, isLast }: {
+  task: OperationTask
   tasks: OperationTask[]
-): "completed" | "current" | "pending" {
-  if (task.completed) return "completed";
-  const firstIncomplete = tasks.find((t) => !t.completed);
-  if (firstIncomplete && firstIncomplete.id === task.id) return "current";
-  return "pending";
-}
-
-function TaskTypeBadge({ type }: { type: OperationTask["type"] }) {
-  const colorMap: Record<OperationTask["type"], string> = {
-    flash: "bg-orange-100 text-orange-700",
-    unbrick: "bg-red-100 text-red-700",
-    unlock: "bg-blue-100 text-blue-700",
-    backup: "bg-teal-100 text-teal-700",
-    repair: "bg-purple-100 text-purple-700",
-    other: "bg-gray-100 text-gray-700",
-  };
-  return (
-    <span
-      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${colorMap[type]}`}
-    >
-      {TASK_TYPE_LABELS[type]}
-    </span>
-  );
-}
-
-function TaskNode({
-  task,
-  tasks,
-  orderId,
-  isLast,
-}: {
-  task: OperationTask;
-  tasks: OperationTask[];
-  orderId: string;
-  isLast: boolean;
+  orderId: string
+  isLast: boolean
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const updateTask = useOrderStore((s) => s.updateTask);
-  const state = getTaskState(task, tasks);
+  const [expanded, setExpanded] = useState(getTaskState(task, tasks) === "current")
+  const updateTask = useOrderStore((s) => s.updateTask)
+  const state = getTaskState(task, tasks)
 
   const handleChange = (updates: Partial<OperationTask>) => {
-    updateTask(orderId, task.id, updates);
-  };
-
-  const circleIcon = () => {
-    switch (state) {
-      case "completed":
-        return (
-          <CheckCircle className="h-6 w-6 text-green-500 shrink-0" />
-        );
-      case "current":
-        return (
-          <span className="relative flex h-6 w-6 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-            <span className="relative inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500">
-              <Loader className="h-3.5 w-3.5 text-white" />
-            </span>
-          </span>
-        );
-      case "pending":
-        return (
-          <Circle className="h-6 w-6 text-gray-300 shrink-0" />
-        );
-    }
-  };
+    updateTask(orderId, task.id, updates)
+  }
 
   return (
     <div className="flex gap-4">
       <div className="flex flex-col items-center">
-        {circleIcon()}
+        {state === "completed" ? (
+          <CheckCircle className="h-6 w-6 text-status-success shrink-0" />
+        ) : state === "current" ? (
+          <span className="relative flex h-6 w-6 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-60" />
+            <span className="relative inline-flex h-6 w-6 items-center justify-center rounded-full bg-status-progress">
+              <Loader className="h-3.5 w-3.5 text-white animate-spin" />
+            </span>
+          </span>
+        ) : (
+          <Circle className="h-6 w-6 text-steel-300 shrink-0" />
+        )}
         {!isLast && (
-          <div
-            className={`w-0.5 flex-1 min-h-8 ${
-              state === "completed" ? "bg-green-300" : "bg-gray-200"
-            }`}
-          />
+          <div className={`w-0.5 flex-1 min-h-10 ${state === "completed" ? "bg-green-300" : "bg-steel-200"}`} />
         )}
       </div>
-      <div className={`flex-1 pb-6 ${isLast ? "" : ""}`}>
+
+      <div className="flex-1 pb-6">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
           className="w-full text-left group"
         >
-          <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-4 py-3 shadow-sm transition hover:border-gray-200 hover:shadow-md">
+          <div className="flex items-center justify-between rounded-lg border border-steel-200 bg-white px-4 py-3.5 shadow-sm transition hover:border-steel-400 hover:shadow">
             <div className="flex items-center gap-3">
-              <span
-                className={`text-sm font-medium ${
-                  state === "completed"
-                    ? "text-green-700"
-                    : state === "current"
-                    ? "text-blue-700"
-                    : "text-gray-500"
-                }`}
-              >
+              <span className={`text-sm font-semibold ${
+                state === "completed" ? "text-green-700" :
+                state === "current" ? "text-blue-700" :
+                "text-steel-500"
+              }`}>
                 {task.label}
               </span>
-              <TaskTypeBadge type={task.type} />
-              {task.error && (
-                <AlertCircle className="h-4 w-4 text-red-500" />
-              )}
+              <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${TASK_TYPE_COLORS[task.type]}`}>
+                {TASK_TYPE_LABELS[task.type]}
+              </span>
+              {task.error && <AlertCircle className="h-4 w-4 text-status-danger" />}
             </div>
             <div className="flex items-center gap-2">
-              {task.completed && (
-                <span className="text-xs text-green-500">已完成</span>
-              )}
+              {task.completed && <span className="text-xs text-green-600 font-medium">已完成</span>}
               {expanded ? (
-                <ChevronUp className="h-4 w-4 text-gray-400" />
+                <ChevronUp className="h-4 w-4 text-steel-400" />
               ) : (
-                <ChevronDown className="h-4 w-4 text-gray-400" />
+                <ChevronDown className="h-4 w-4 text-steel-400" />
               )}
             </div>
           </div>
         </button>
 
         {expanded && (
-          <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-4 space-y-3">
-            <label className="flex items-center gap-2 cursor-pointer">
+          <div className="mt-2 rounded-lg border border-steel-200 bg-steel-50/70 p-4 space-y-4 animate-slide-in">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={task.completed}
-                onChange={(e) =>
-                  handleChange({ completed: e.target.checked })
-                }
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                onChange={(e) => handleChange({ completed: e.target.checked })}
+                className="h-4 w-4 rounded border-steel-300 text-steel-800 focus:ring-steel-700"
               />
-              <span className="text-sm text-gray-700">标记完成</span>
+              <span className="text-sm text-steel-700 font-medium">标记此步骤完成</span>
             </label>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-                操作结果
-              </label>
+              <label className="block text-xs font-semibold text-steel-600 mb-1.5">操作结果</label>
               <textarea
                 value={task.result}
                 onChange={(e) => handleChange({ result: e.target.value })}
                 rows={3}
-                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none"
-                placeholder="请输入操作结果..."
+                className="w-full rounded-md border border-steel-200 bg-white px-3 py-2 text-sm text-steel-800 placeholder-steel-400 focus:border-steel-600 focus:outline-none focus:ring-1 focus:ring-steel-600 resize-none"
+                placeholder="记录此步骤的具体操作结果、关键信息等..."
               />
             </div>
 
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">
-                <Clock className="h-3.5 w-3.5" />
-                耗时（分钟）
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={task.duration || ""}
-                onChange={(e) =>
-                  handleChange({
-                    duration: e.target.value ? Number(e.target.value) : 0,
-                  })
-                }
-                className="w-32 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                placeholder="0"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-steel-600 mb-1.5">
+                  <Clock className="h-3.5 w-3.5" />
+                  耗时（分钟）
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={task.duration || ""}
+                  onChange={(e) =>
+                    handleChange({ duration: e.target.value ? Number(e.target.value) : 0 })
+                  }
+                  className="w-full rounded-md border border-steel-200 bg-white px-3 py-2 text-sm text-steel-800 focus:border-steel-600 focus:outline-none focus:ring-1 focus:ring-steel-600"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-steel-600 mb-1.5">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  异常描述（选填）
+                </label>
+                <input
+                  type="text"
+                  value={task.error}
+                  onChange={(e) => handleChange({ error: e.target.value })}
+                  className="w-full rounded-md border border-steel-200 bg-white px-3 py-2 text-sm text-steel-800 focus:border-steel-600 focus:outline-none focus:ring-1 focus:ring-steel-600"
+                  placeholder="遇到的异常情况..."
+                />
+              </div>
             </div>
 
             {task.error && (
-              <div>
-                <label className="flex items-center gap-1.5 text-xs font-medium text-red-500 mb-1">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  异常信息
-                </label>
-                <textarea
-                  value={task.error}
-                  onChange={(e) => handleChange({ error: e.target.value })}
-                  rows={2}
-                  className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 placeholder-red-300 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400 resize-none"
-                  placeholder="描述异常情况..."
-                />
+              <div className="rounded-md border border-red-200 bg-red-50 p-3">
+                <p className="text-xs font-semibold text-red-600 mb-1">当前异常</p>
+                <p className="text-sm text-red-700">{task.error}</p>
               </div>
             )}
           </div>
         )}
       </div>
     </div>
-  );
+  )
 }
 
 export default function OperationTasks() {
-  const { orderId } = useParams<{ orderId: string }>();
-  const getOrder = useOrderStore((s) => s.getOrder);
+  const { orderId } = useParams<{ orderId: string }>()
+  const orders = useOrderStore((s) => s.orders)
+  const order = orderId ? orders.find((o) => o.id === orderId) : undefined
 
-  const order = orderId ? getOrder(orderId) : undefined;
-
-  if (!order) {
+  if (!orderId || !order) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
-        <AlertCircle className="h-12 w-12 text-gray-300" />
-        <p className="text-gray-500 text-lg">未找到该工单</p>
-        <Link
-          to="/"
-          className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
-        >
-          返回首页
-        </Link>
-      </div>
-    );
+      <OrderPicker
+        title="操作任务"
+        description="请先选择工单，按步骤节点执行刷机、解锁、救砖等操作，每一步填写结果和耗时"
+        routePrefix="/tasks"
+      />
+    )
   }
 
-  return <OrderTaskView order={order} />;
-}
-
-function OrderTaskView({ order }: { order: WorkOrder }) {
-  const { tasks } = order;
-  const completedCount = tasks.filter((t) => t.completed).length;
-  const totalCount = tasks.length;
-  const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const { tasks } = order
+  const completedCount = tasks.filter((t) => t.completed).length
+  const totalCount = tasks.length
+  const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6">
-      <h1 className="text-xl font-bold text-gray-900 mb-6">操作任务</h1>
+    <div className="mx-auto max-w-3xl px-6 py-8">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <ListChecks className="w-6 h-6 text-steel-700" />
+          <div>
+            <h1 className="text-2xl font-bold text-steel-900">操作任务</h1>
+            <p className="text-sm text-steel-500 mt-0.5">按节点顺序执行，每步完成后勾选并记录结果</p>
+          </div>
+        </div>
+        <Link
+          to="/"
+          className="text-sm text-steel-500 hover:text-steel-700 underline underline-offset-2"
+        >
+          ← 返回工单大厅
+        </Link>
+      </div>
 
-      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm mb-6">
+      <div className="rounded-xl border border-steel-200 bg-white p-5 shadow-sm mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <span className="text-base font-semibold text-gray-800">
-              {order.orderNo}
-            </span>
-            <span className="text-sm text-gray-500">
-              {order.brand} {order.model}
-            </span>
+            <span className="font-mono text-base font-semibold text-steel-800">{order.orderNo}</span>
+            <span className="text-sm text-steel-500">{order.brand} {order.model}</span>
           </div>
-          <span
-            className={`inline-block rounded-full border px-3 py-1 text-xs font-medium ${
-              STATUS_COLORS[order.status]
-            }`}
-          >
+          <span className={`inline-block rounded-full border px-3 py-1 text-xs font-medium ${STATUS_COLORS[order.status]}`}>
             {STATUS_LABELS[order.status]}
           </span>
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-gray-500">任务进度</span>
-            <span className="text-xs font-medium text-gray-700">
-              {completedCount}/{totalCount} 已完成
-            </span>
+            <span className="text-xs text-steel-500 font-medium">任务进度</span>
+            <span className="text-xs font-semibold text-steel-700">{completedCount}/{totalCount} 步骤完成</span>
           </div>
-          <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-2.5 w-full rounded-full bg-steel-100 overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-green-500 transition-all duration-500"
+              className="h-full rounded-full bg-gradient-to-r from-status-progress to-status-success transition-all duration-500"
               style={{ width: `${percentage}%` }}
             />
           </div>
-          <p className="mt-1 text-right text-xs text-gray-400">
-            {percentage}%
-          </p>
+          <p className="mt-1 text-right text-xs text-steel-500 font-medium">{percentage}%</p>
         </div>
       </div>
 
@@ -282,6 +239,21 @@ function OrderTaskView({ order }: { order: WorkOrder }) {
           />
         ))}
       </div>
+
+      <div className="mt-6 flex gap-3">
+        <Link
+          to={`/verify/${order.id}`}
+          className="flex-1 py-2.5 border border-steel-300 text-steel-700 font-medium rounded-xl hover:bg-steel-50 transition-colors text-center text-sm"
+        >
+          ← 返回设备核验
+        </Link>
+        <Link
+          to={`/collab/${order.id}`}
+          className="flex-1 py-2.5 bg-steel-800 text-white font-medium rounded-xl hover:bg-steel-900 transition-colors text-center text-sm"
+        >
+          进入远程协作 →
+        </Link>
+      </div>
     </div>
-  );
+  )
 }

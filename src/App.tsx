@@ -13,10 +13,15 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<OrderHall />} />
+          <Route path="/verify" element={<DeviceVerify />} />
           <Route path="/verify/:orderId" element={<DeviceVerify />} />
+          <Route path="/tasks" element={<OperationTasks />} />
           <Route path="/tasks/:orderId" element={<OperationTasks />} />
+          <Route path="/collab" element={<RemoteCollab />} />
           <Route path="/collab/:orderId" element={<RemoteCollab />} />
+          <Route path="/risk" element={<RiskConfirm />} />
           <Route path="/risk/:orderId" element={<RiskConfirm />} />
+          <Route path="/archive" element={<CaseArchive />} />
           <Route path="/archive/:orderId" element={<CaseArchive />} />
         </Route>
       </Routes>
